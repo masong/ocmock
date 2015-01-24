@@ -83,8 +83,16 @@
 
     /* if there is another mock for this exact class, stop it */
     id otherMock = OCMGetAssociatedMockForClass(mockedClass, NO);
-    if(otherMock != nil)
+    NSMutableArray *classStubsToReAdd = [NSMutableArray array];
+    if(otherMock != nil) {
+        for (OCMInvocationStub *stub in [otherMock stubs]) {
+            if (stub.recordedAsClassMethod) {
+                [classStubsToReAdd addObject:stub];
+            }
+        }
+        
         [otherMock restoreMetaClass];
+    }
 
     OCMSetAssociatedMockForClass(self, mockedClass);
 
@@ -109,6 +117,7 @@
     NSArray *methodBlackList = @[@"class", @"forwardingTargetForSelector:", @"methodSignatureForSelector:", @"forwardInvocation:", @"isBlock",
             @"instanceMethodForwarderForSelector:", @"instanceMethodSignatureForSelector:"];
     [NSObject enumerateMethodsInClass:originalMetaClass usingBlock:^(Class cls, SEL sel) {
+        // If the method is on NSObject or NSObject's metaclass, we don't want to forward the metohd.
         if((cls == object_getClass([NSObject class])) || (cls == [NSObject class]) || (cls == object_getClass(cls)))
             return;
         NSString *className = NSStringFromClass(cls);
@@ -127,6 +136,10 @@
             // ignore for now
         }
     }];
+    
+    for (OCMInvocationStub *stub in classStubsToReAdd) {
+        [self addStub:stub];
+    }
 }
 
 - (void)setupForwarderForClassMethodSelector:(SEL)selector

@@ -27,11 +27,12 @@
 {
 	BOOL			isNice;
 	BOOL			expectationOrderMatters;
-	NSMutableArray	*stubs;
 	NSMutableArray	*expectations;
 	NSMutableArray	*exceptions;
     NSMutableArray  *invocations;
 }
+
+@property (readonly, retain, nonatomic) NSMutableArray *stubs;
 
 + (id)mockForClass:(Class)aClass;
 + (id)mockForProtocol:(Protocol *)aProtocol;

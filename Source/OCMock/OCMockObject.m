@@ -32,6 +32,8 @@
 
 @implementation OCMockObject
 
+@synthesize stubs=stubs;
+
 #pragma mark  Class initialisation
 
 + (void)initialize
