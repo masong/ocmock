@@ -117,6 +117,11 @@
     [stubs addObject:aStub];
 }
 
+- (void)removeStub:(OCMInvocationStub *)stub
+{
+    [self.stubs removeObject:stub];
+}
+
 - (void)addExpectation:(OCMInvocationExpectation *)anExpectation
 {
     [expectations addObject:anExpectation];

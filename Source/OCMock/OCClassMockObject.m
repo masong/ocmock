@@ -20,40 +20,62 @@
 #import "OCMFunctions.h"
 #import "OCMInvocationStub.h"
 
+@interface OCClassMockObject ()
+@property (retain, nonatomic) NSMutableArray *dependantMocks;
+@property (retain, nonatomic) NSMutableArray *personalStubs;
+@property (retain, nonatomic) OCClassMockObject *providerMock;
+@end
+
 @implementation OCClassMockObject
 
 #pragma mark  Initialisers, description, accessors, etc.
 
 - (id)initWithClass:(Class)aClass
 {
-	[super init];
-	mockedClass = aClass;
+    [super init];
+    mockedClass = aClass;
     [self prepareClassForClassMethodMocking];
-	return self;
+    _dependantMocks = [[NSMutableArray array] retain];
+    [_dependantMocks addObject:[NSValue valueWithNonretainedObject:self]];
+    _personalStubs = [[NSMutableArray array] retain];
+    return self;
 }
 
 - (void)dealloc
 {
-	[self stopMocking];
-	[super dealloc];
+    NSAssert(_dependantMocks.count == 0 || (_dependantMocks.count == 1 && [_dependantMocks containsObject:[NSValue valueWithNonretainedObject:self]]), @"");
+    [_dependantMocks release];
+    [_personalStubs release];
+    [_providerMock removeDependantMock:self];
+    [_providerMock release];
+    [self stopMocking];
+    [super dealloc];
 }
 
 - (NSString *)description
 {
-	return [NSString stringWithFormat:@"OCMockObject(%@)", NSStringFromClass(mockedClass)];
+    return [NSString stringWithFormat:@"OCMockObject(%@)", NSStringFromClass(mockedClass)];
 }
 
 - (Class)mockedClass
 {
-	return mockedClass;
+    return mockedClass;
 }
 
 #pragma mark  Extending/overriding superclass behaviour
 
 - (void)stopMocking
 {
-    if(originalMetaClass != nil)
+    [self.dependantMocks removeObject:[NSValue valueWithNonretainedObject:self]];
+    if ([self _canRestoreMetaClass]) {
         [self restoreMetaClass];
+    } else {
+        if (self.providerMock) {
+            [OCClassMockObject _removeStubs:self.stubs fromMockObject:self.providerMock];
+        } else {
+            [OCClassMockObject _removeStubs:self.personalStubs fromMockObject:self];
+        }
+    }
     [super stopMocking];
 }
 
@@ -67,10 +89,38 @@
 - (void)addStub:(OCMInvocationStub *)aStub
 {
     [super addStub:aStub];
-    if([aStub recordedAsClassMethod])
-        [self setupForwarderForClassMethodSelector:[[aStub recordedInvocation] selector]];
+    if ([aStub recordedAsClassMethod]) {
+        if (self.providerMock) {
+            [self.providerMock addDependantStub:aStub];
+        } else {
+            [self setupForwarderForClassMethodSelector:[[aStub recordedInvocation] selector]];
+            [self.personalStubs addObject:aStub];
+        }
+    }
 }
 
+- (void)addDependantStub:(OCMInvocationStub *)stub {
+    [super addStub:stub];
+    [self setupForwarderForClassMethodSelector:[[stub recordedInvocation] selector]];
+}
+
+
+#pragma mark Dependant Mocks
+
+- (void)addDependantMock:(OCClassMockObject *)dependantMock
+{
+    [self.dependantMocks addObject:[NSValue valueWithNonretainedObject:dependantMock]];
+}
+
+- (void)removeDependantMock:(OCClassMockObject *)dependantMock
+{
+    [self.dependantMocks removeObject:[NSValue valueWithNonretainedObject:dependantMock]];
+    // If there are no other dependant mocks, we should restore the meta
+    if ([self _canRestoreMetaClass])
+    {
+        [self restoreMetaClass];
+    }
+}
 
 #pragma mark  Class method mocking
 
@@ -82,16 +132,11 @@
         return;
 
     /* if there is another mock for this exact class, stop it */
-    id otherMock = OCMGetAssociatedMockForClass(mockedClass, NO);
-    NSMutableArray *classStubsToReAdd = [NSMutableArray array];
-    if(otherMock != nil) {
-        for (OCMInvocationStub *stub in [otherMock stubs]) {
-            if (stub.recordedAsClassMethod) {
-                [classStubsToReAdd addObject:stub];
-            }
-        }
-        
-        [otherMock restoreMetaClass];
+    OCClassMockObject *otherMock = OCMGetAssociatedMockForClass(mockedClass, NO);
+    if (otherMock) {
+        [otherMock addDependantMock:self];
+        self.providerMock = otherMock;
+        return;
     }
 
     OCMSetAssociatedMockForClass(self, mockedClass);
@@ -136,10 +181,6 @@
             // ignore for now
         }
     }];
-    
-    for (OCMInvocationStub *stub in classStubsToReAdd) {
-        [self addStub:stub];
-    }
 }
 
 - (void)setupForwarderForClassMethodSelector:(SEL)selector
@@ -212,10 +253,23 @@
     return class_conformsToProtocol(mockedClass, aProtocol);
 }
 
+#pragma mark Helper methods
+
++ (void)_removeStubs:(NSArray *)stubs fromMockObject:(OCMockObject *)mockObject {
+    for (OCMInvocationStub *stub in stubs) {
+        [mockObject removeStub:stub];
+    }
+}
+
+- (BOOL)_canRestoreMetaClass {
+    return originalMetaClass && self.dependantMocks.count == 0;
+}
+
 @end
 
 
 #pragma mark  -
+
 
 /**
  taken from:

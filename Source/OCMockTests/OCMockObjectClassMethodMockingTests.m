@@ -245,18 +245,6 @@ static NSUInteger initializeCallCount = 0;
     XCTAssertEqualObjects(@"Bar-ClassMethod", [TestClassWithClassMethods bar], @"Should have 'unstubbed' class method 'bar'.");
 }
 
-//- (void)testSecondClassMockDeactivatesFirst
-//{
-//    id mock1 = [[OCClassMockObject alloc] initWithClass:[TestClassWithClassMethods class]];
-//    [[[mock1 stub] andReturn:@"mocked-foo-1"] foo];
-//
-//    id mock2 = [[OCClassMockObject alloc] initWithClass:[TestClassWithClassMethods class]];
-//    XCTAssertEqualObjects(@"Foo-ClassMethod", [TestClassWithClassMethods foo]);
-//
-//    [mock2 stopMocking];
-//    XCTAssertNoThrow([TestClassWithClassMethods foo]);
-//}
-
 - (void)testSecondClassMockIncludesFirstMocks {
     OCMockObject *mockOne = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
     [[[[mockOne stub] classMethod] andReturn:@"mockOne"] foo];
@@ -267,11 +255,33 @@ static NSUInteger initializeCallCount = 0;
     XCTAssertEqualObjects(@"mockTwo", [[(id)mockTwo class] bar]);
 }
 
-- (void)testSecondClassMockOverridesFirstMocks {
+- (void)testTwoClassMockStubOrdering {
     OCMockObject *mockOne = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
-    [[[[mockOne stub] classMethod] andReturn:@"mockOne"] foo];
     OCMockObject *mockTwo = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
     [[[[mockTwo stub] classMethod] andReturn:@"mockTwo"] foo];
+    [[[[mockOne stub] classMethod] andReturn:@"mockOne"] foo];
+    
+    XCTAssertEqualObjects(@"mockTwo", [[(id)mockOne class] foo]);
+    XCTAssertEqualObjects(@"mockTwo", [[(id)mockTwo class] foo]);
+}
+
+- (void)testTwoClassMocksStopMocking {
+    OCMockObject *mockOne = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
+    OCMockObject *mockTwo = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
+    [[[[mockTwo stub] classMethod] andReturn:@"mockTwo"] foo];
+    [[[[mockOne stub] classMethod] andReturn:@"mockOne"] foo];
+    [mockTwo stopMocking];
+    
+    XCTAssertEqualObjects(@"mockOne", [[(id)mockOne class] foo]);
+    XCTAssertEqualObjects(@"mockOne", [[(id)mockTwo class] foo]);
+}
+
+- (void)testTwoClassMocksStopMockingOriginalMock {
+    OCMockObject *mockOne = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
+    OCMockObject *mockTwo = OCMPartialMock([[TestClassWithClassMethods alloc] init]);
+    [[[[mockOne stub] classMethod] andReturn:@"mockOne"] foo];
+    [[[[mockTwo stub] classMethod] andReturn:@"mockTwo"] foo];
+    [mockOne stopMocking];
     
     XCTAssertEqualObjects(@"mockTwo", [[(id)mockOne class] foo]);
     XCTAssertEqualObjects(@"mockTwo", [[(id)mockTwo class] foo]);

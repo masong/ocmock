@@ -62,6 +62,8 @@
 // internal use only
 
 - (void)addStub:(OCMInvocationStub *)aStub;
+- (void)removeStub:(OCMInvocationStub *)stub;
+
 - (void)addExpectation:(OCMInvocationExpectation *)anExpectation;
 
 - (BOOL)handleInvocation:(NSInvocation *)anInvocation;

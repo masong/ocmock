@@ -18,7 +18,7 @@
 
 @interface OCClassMockObject : OCMockObject 
 {
-	Class               mockedClass;
+    Class               mockedClass;
     Class               originalMetaClass;
 }
 
@@ -26,5 +26,9 @@
 
 - (Class)mockedClass;
 - (Class)mockObjectClass;  // since -class returns the mockedClass
+
+- (void)addDependantStub:(OCMInvocationStub *)stub;
+- (void)addDependantMock:(OCClassMockObject *)dependantMock;
+- (void)removeDependantMock:(OCClassMockObject *)dependantMock;
 
 @end
